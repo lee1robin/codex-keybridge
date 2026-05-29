@@ -1,0 +1,11 @@
+.env
+.DS_Store
+logs/
+*.log
+*.sqlite
+*.db
+*.bak
+*.backup
+__pycache__/
+.venv/
+

@@ -1,0 +1,11 @@
+model = "gpt-5.5"
+model_provider = "litellm"
+model_reasoning_effort = "medium"
+
+[model_providers.litellm]
+name = "LiteLLM"
+base_url = "http://127.0.0.1:4000/v1"
+wire_api = "responses"
+requires_openai_auth = true
+experimental_bearer_token = "sk-codex-local"
+
