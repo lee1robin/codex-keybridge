@@ -1,6 +1,6 @@
 # Architecture
 
-This harness inserts LiteLLM between Codex Desktop and upstream model providers.
+Codex KeyBridge inserts LiteLLM between Codex Desktop and upstream model providers.
 
 ```text
 Codex Desktop
@@ -35,7 +35,7 @@ LiteLLM receives that model name and resolves it through `config.yaml`:
     api_key: os.environ/GEMINI_API_KEY
 ```
 
-That means the UI name and the upstream model do not need to match.
+That means the UI name and the upstream model do not need to match. The local bridge decides which provider and key to use.
 
 ## Why Keep `requires_openai_auth = true`
 
@@ -60,4 +60,3 @@ It includes:
 - spend
 - endpoint
 - request status
-

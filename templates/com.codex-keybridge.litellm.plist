@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.codex-cross-key-harness.litellm</string>
+  <string>com.codex-keybridge.litellm</string>
 
   <key>ProgramArguments</key>
   <array>
@@ -27,4 +27,3 @@
   <string>__INSTALL_DIR__/logs/litellm.err.log</string>
 </dict>
 </plist>
-

@@ -1,22 +1,46 @@
-# Codex Cross-Key Harness
+# Codex KeyBridge
 
-Run Codex with its normal account login, while routing actual model calls through your own LiteLLM proxy and API keys.
+**Keep the Codex login. Bring your own model keys.**
 
-This project packages the setup pattern proven in a local Codex Desktop environment:
+Codex KeyBridge is a local routing harness for Codex Desktop. It lets Codex keep its normal account login and desktop experience, while actual model calls are routed through your own LiteLLM proxy, API keys, and providers.
 
-- Keep Codex signed in normally.
-- Add a local LiteLLM provider to Codex.
-- Map Codex model slugs to different upstream keys and providers.
-- Track prompt tokens, completion tokens, total tokens, spend, model, provider, and endpoint in PostgreSQL.
-- Start the whole stack automatically after macOS login.
+In practice, this means Codex can show one model name while your local router sends the request somewhere else:
 
-The sharp idea is simple: use Codex to modify Codex's own provider configuration, then let LiteLLM become the cross-key routing layer.
+```text
+Codex model picker -> local LiteLLM -> your OpenAI / Gemini / other provider keys
+```
 
-## Why This Exists
+The useful trick: Codex can be configured, from inside Codex itself, to call a local provider. Once that local provider is LiteLLM, you get cross-key and cross-provider routing without changing the way you sign in to Codex.
 
-Codex Desktop normally presents model choices as Codex/OpenAI models. With this harness, those same local model slugs can be routed through a local LiteLLM proxy:
+## The Core Idea
 
-| Codex model slug | Upstream model | Upstream key |
+Codex Desktop has two separate concerns:
+
+- The user account session that powers the app experience.
+- The model provider endpoint that receives inference requests.
+
+Codex KeyBridge keeps the first one intact and changes the second one.
+
+```text
+Codex Desktop
+  keeps normal login
+  keeps normal UI
+  keeps normal history
+        |
+        v
+Local LiteLLM proxy
+  maps Codex model slugs
+  chooses provider keys
+  records token usage
+        |
+        +--> OpenAI API key
+        +--> Gemini API key
+        +--> other LiteLLM-supported providers
+```
+
+## Example Routing
+
+| Codex model slug | Actual upstream model | API key used |
 |---|---|---|
 | `gpt-5.5` | `openai/gpt-5.5` | `OPENAI_API_KEY` |
 | `gpt-5.4` | `openai/gpt-5.4` | `OPENAI_API_KEY` |
@@ -24,45 +48,59 @@ Codex Desktop normally presents model choices as Codex/OpenAI models. With this 
 | `gpt-5.3-codex` | `openai/gpt-5.3-codex` | `OPENAI_API_KEY` |
 | `gpt-5.2` | `gemini/gemini-3-flash-preview` | `GEMINI_API_KEY` |
 
-That last row is the cross-provider trick: Codex still sees `gpt-5.2`, but LiteLLM sends it to Gemini.
+That last row is the point: Codex still selects `gpt-5.2`, but your local router sends the call to Gemini.
 
-## What This Project Contains
+## Why It Is Useful
 
-- `scripts/install-macos.sh`  
-  Installs PostgreSQL, creates the LiteLLM environment, writes config files, installs the LaunchAgent, and patches Codex config.
+- Use Codex with your own API keys.
+- Route different Codex model choices to different providers.
+- Keep a local, inspectable usage ledger.
+- See prompt tokens, completion tokens, total tokens, spend, upstream model, provider, and endpoint.
+- Keep the setup local to your Mac.
+- Restart cleanly: PostgreSQL and LiteLLM can auto-start after login.
 
-- `scripts/verify.sh`  
-  Checks Postgres, LiteLLM health, model routing, UI login, and token/spend database records.
+## What This Installs
 
-- `scripts/uninstall.sh`  
-  Stops and unloads the LiteLLM LaunchAgent. It does not delete your database or keys unless you do that manually.
+Default local paths:
 
-- `templates/`  
-  Clean config templates for `.env`, LiteLLM, LaunchAgent, and Codex.
+```text
+~/codex-litellm
+~/.codex/config.toml
+~/Library/LaunchAgents/com.codex-keybridge.litellm.plist
+```
 
-- `docs/`  
-  Design notes, troubleshooting, and the cross-key routing explanation.
+Default local ports:
+
+```text
+LiteLLM:    127.0.0.1:4000
+PostgreSQL: 127.0.0.1:5432
+```
 
 ## Quick Start
 
 ```zsh
-git clone https://github.com/lee1robin/codex-cross-key-harness.git
-cd codex-cross-key-harness
+git clone https://github.com/lee1robin/codex-keybridge.git
+cd codex-keybridge
 cp templates/env.example .env
 ```
 
-Edit `.env` and fill in your real keys:
+Edit `.env`:
 
 ```zsh
-OPENAI_API_KEY=...
-GEMINI_API_KEY=...
+OPENAI_API_KEY=your-openai-api-key
+GEMINI_API_KEY=your-gemini-api-key
 LITELLM_MASTER_KEY=sk-codex-local
 ```
 
-Then run:
+Install:
 
 ```zsh
 ./scripts/install-macos.sh
+```
+
+Restart Codex Desktop, then verify:
+
+```zsh
 ./scripts/verify.sh
 ```
 
@@ -72,61 +110,91 @@ Open LiteLLM UI:
 http://127.0.0.1:4000/ui
 ```
 
-Default UI login:
+Default login:
 
 ```text
 Username: admin
-Password: the value of LITELLM_MASTER_KEY
+Password: value of LITELLM_MASTER_KEY
 ```
 
-## What Gets Installed
+## What The Installer Does
 
-Default paths:
+The macOS installer:
+
+1. Installs `postgresql@16` with Homebrew.
+2. Creates a local `litellm` database.
+3. Creates `~/codex-litellm`.
+4. Installs LiteLLM into a Python virtual environment.
+5. Writes LiteLLM model routing config.
+6. Writes a startup script that waits for PostgreSQL before launching LiteLLM.
+7. Installs a macOS LaunchAgent for LiteLLM.
+8. Patches `~/.codex/config.toml` to add a local LiteLLM provider.
+9. Leaves your real API keys in a local `.env` file that is ignored by Git.
+
+## Codex Config Shape
+
+Codex KeyBridge adds a provider like this:
+
+```toml
+model = "gpt-5.5"
+model_provider = "litellm"
+model_reasoning_effort = "medium"
+
+[model_providers.litellm]
+name = "LiteLLM"
+base_url = "http://127.0.0.1:4000/v1"
+wire_api = "responses"
+requires_openai_auth = true
+experimental_bearer_token = "sk-codex-local"
+```
+
+The important part is that Codex still expects its normal account login, while the model endpoint becomes local.
+
+## Token And Spend Visibility
+
+When LiteLLM is connected to PostgreSQL, requests are written to:
 
 ```text
-~/codex-litellm
-~/.codex/config.toml
-~/Library/LaunchAgents/com.codex-cross-key-harness.litellm.plist
+LiteLLM_SpendLogs
 ```
 
-Default ports:
-
-```text
-LiteLLM: 127.0.0.1:4000
-PostgreSQL: 127.0.0.1:5432
-```
-
-## Verification
-
-Health check:
-
-```zsh
-curl -s -S --max-time 8 http://127.0.0.1:4000/health/readiness
-```
-
-Expected:
-
-```json
-{"status":"healthy","db":"connected"}
-```
-
-Check recent spend logs:
+Useful query:
 
 ```zsh
 psql -d litellm -c 'select "startTime", model, model_group, custom_llm_provider, total_tokens, prompt_tokens, completion_tokens, spend, status from "LiteLLM_SpendLogs" order by "startTime" desc limit 8;'
 ```
 
-## Important Safety Notes
+For example, you can verify that Codex's `gpt-5.2` route actually used Gemini:
+
+```text
+model                         model_group  provider
+gemini/gemini-3-flash-preview gpt-5.2      gemini
+```
+
+## Project Files
+
+```text
+scripts/install-macos.sh       full macOS installer
+scripts/verify.sh              health, routing, and token logging checks
+scripts/uninstall.sh           removes the LiteLLM LaunchAgent
+scripts/patch_codex_config.py  safe Codex config patcher
+templates/                     env, LiteLLM, LaunchAgent, and Codex templates
+docs/architecture.md           how the bridge works
+docs/troubleshooting.md        common failure modes
+docs/pitch.md                  short launch copy and positioning
+```
+
+## Safety
 
 Do not commit real API keys.
 
-This repo includes only templates. Your local `.env` is ignored by Git.
+This repository includes only templates. Your local `.env` is ignored by Git.
 
-Codex and LiteLLM both evolve quickly. Treat this harness as a practical setup scaffold, not a permanent compatibility guarantee.
+Also avoid committing LiteLLM logs. They may contain prompts or tool output.
 
 ## Known Limitation
 
-Simple requests and token tracking work well with the cross-provider route. Complex Codex agent workflows that involve tool-call history may expose LiteLLM compatibility gaps when translating the Responses API to Gemini. See `docs/troubleshooting.md`.
+Simple requests and token tracking work well with cross-provider routes. Complex Codex agent workflows that involve tool-call history may expose compatibility gaps when LiteLLM translates Codex's Responses API calls to Gemini. See `docs/troubleshooting.md`.
 
 ## License
 

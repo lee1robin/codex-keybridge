@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-LABEL="com.codex-cross-key-harness.litellm"
+LABEL="com.codex-keybridge.litellm"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
@@ -21,4 +21,3 @@ This script did not delete:
 
 Remove those manually if you are sure you no longer need them.
 MSG
-

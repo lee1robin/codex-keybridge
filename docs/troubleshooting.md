@@ -72,6 +72,5 @@ gh auth login
 Then create the remote repository:
 
 ```zsh
-gh repo create lee1robin/codex-cross-key-harness --public --source=. --remote=origin --push
+gh repo create lee1robin/codex-keybridge --public --source=. --remote=origin --push
 ```
-

@@ -4,12 +4,12 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_DIR="${CODEX_LITELLM_DIR:-$HOME/codex-litellm}"
 CODEX_CONFIG="${CODEX_CONFIG:-$HOME/.codex/config.toml}"
-LAUNCH_AGENT_LABEL="com.codex-cross-key-harness.litellm"
+LAUNCH_AGENT_LABEL="com.codex-keybridge.litellm"
 LAUNCH_AGENT_PATH="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist"
 POSTGRES_BIN="/opt/homebrew/opt/postgresql@16/bin"
 
 log() {
-  printf '[codex-cross-key] %s\n' "$*"
+  printf '[codex-keybridge] %s\n' "$*"
 }
 
 require_file() {
@@ -95,7 +95,7 @@ EOF
 chmod +x "$INSTALL_DIR/start-litellm.sh"
 
 log "Installing LaunchAgent"
-sed "s#__INSTALL_DIR__#$INSTALL_DIR#g" "$REPO_DIR/templates/com.codex-cross-key-harness.litellm.plist" > "$LAUNCH_AGENT_PATH"
+sed "s#__INSTALL_DIR__#$INSTALL_DIR#g" "$REPO_DIR/templates/com.codex-keybridge.litellm.plist" > "$LAUNCH_AGENT_PATH"
 plutil -lint "$LAUNCH_AGENT_PATH"
 
 if launchctl print "gui/$(id -u)/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1; then
@@ -117,4 +117,3 @@ fi
   --master-key "$(grep '^LITELLM_MASTER_KEY=' "$INSTALL_DIR/.env" | cut -d= -f2-)"
 
 log "Done. Restart Codex Desktop, then run ./scripts/verify.sh"
-
