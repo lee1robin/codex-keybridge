@@ -1,35 +1,52 @@
 # Codex KeyBridge
 
-**Keep the Codex login. Bring your own model keys.**
+**Keep Codex login, bring your own model keys.**
 
-Codex KeyBridge is a local routing harness for Codex Desktop. It lets Codex keep its normal account login and desktop experience, while actual model calls are routed through your own LiteLLM proxy, API keys, and providers.
+中文说明在前，English version follows.
 
-In practice, this means Codex can show one model name while your local router sends the request somewhere else:
+Codex KeyBridge is a local harness that keeps the normal Codex Desktop login experience, while routing actual model calls through your own LiteLLM proxy and API keys.
+
+换句话说：你仍然用 GPT 账号登录 Codex，继续保留远程控制、插件、工具、历史记录等桌面体验；但真正消耗模型 Token 的地方，可以切到你自己的 OpenAI、Gemini 或其他 LiteLLM 支持的 API Key。
+
+## 为什么有价值
+
+普通的 API Key 调用方式往往只是“调用模型”，很难完整保留 Codex Desktop 里的插件、工具调用、远程控制和工作区体验。
+
+Codex KeyBridge 的价值在于把两件事分开：
+
+- 登录和产品体验：继续使用 Codex Desktop 的正常 GPT 账号登录。
+- 模型消耗和供应商：通过本地 LiteLLM 使用你自己的 API Key。
+
+这样你可以同时得到：
+
+- Codex Desktop 的完整交互体验。
+- 插件、工具、远程控制等账号登录后才有的能力。
+- 由你自己的 API Key 承担模型调用。
+- 更自由的 Token 使用空间。
+- OpenAI、Gemini 或其他模型供应商之间的本地路由。
+- 本地 PostgreSQL 里的 Token、费用、模型和供应商记录。
+
+## 工作方式
 
 ```text
 Codex model picker -> local LiteLLM -> your OpenAI / Gemini / other provider keys
 ```
 
-The useful trick: Codex can be configured, from inside Codex itself, to call a local provider. Once that local provider is LiteLLM, you get cross-key and cross-provider routing without changing the way you sign in to Codex.
+Codex Desktop 里有两个可以分开的部分：
 
-## The Core Idea
+- 账号登录：决定你能不能使用 Codex Desktop 的产品能力。
+- 模型端点：决定请求实际发给谁、使用谁的 Key、消耗谁的额度。
 
-Codex Desktop has two separate concerns:
-
-- The user account session that powers the app experience.
-- The model provider endpoint that receives inference requests.
-
-Codex KeyBridge keeps the first one intact and changes the second one.
+Codex KeyBridge 保留前者，替换后者。
 
 ```text
 Codex Desktop
-  keeps normal login
-  keeps normal UI
-  keeps normal history
+  keeps normal GPT account login
+  keeps normal UI, history, plugins, tools
         |
         v
 Local LiteLLM proxy
-  maps Codex model slugs
+  maps Codex model names
   chooses provider keys
   records token usage
         |
@@ -38,9 +55,9 @@ Local LiteLLM proxy
         +--> other LiteLLM-supported providers
 ```
 
-## Example Routing
+## 示例路由
 
-| Codex model slug | Actual upstream model | API key used |
+| Codex 里选择的模型 | 实际上游模型 | 使用的 API Key |
 |---|---|---|
 | `gpt-5.5` | `openai/gpt-5.5` | `OPENAI_API_KEY` |
 | `gpt-5.4` | `openai/gpt-5.4` | `OPENAI_API_KEY` |
@@ -48,20 +65,52 @@ Local LiteLLM proxy
 | `gpt-5.3-codex` | `openai/gpt-5.3-codex` | `OPENAI_API_KEY` |
 | `gpt-5.2` | `gemini/gemini-3-flash-preview` | `GEMINI_API_KEY` |
 
-That last row is the point: Codex still selects `gpt-5.2`, but your local router sends the call to Gemini.
+最后一行是这个方案最直观的例子：Codex 里仍然选择 `gpt-5.2`，但本地 LiteLLM 可以把它转发到 Gemini。
 
-## Why It Is Useful
+## 快速开始
 
-- Use Codex with your own API keys.
-- Route different Codex model choices to different providers.
-- Keep a local, inspectable usage ledger.
-- See prompt tokens, completion tokens, total tokens, spend, upstream model, provider, and endpoint.
-- Keep the setup local to your Mac.
-- Restart cleanly: PostgreSQL and LiteLLM can auto-start after login.
+```zsh
+git clone https://github.com/lee1robin/codex-keybridge.git
+cd codex-keybridge
+cp templates/env.example .env
+```
 
-## What This Installs
+编辑 `.env`：
 
-Default local paths:
+```zsh
+OPENAI_API_KEY=your-openai-api-key
+GEMINI_API_KEY=your-gemini-api-key
+LITELLM_MASTER_KEY=sk-codex-local
+```
+
+安装：
+
+```zsh
+./scripts/install-macos.sh
+```
+
+重启 Codex Desktop，然后验证：
+
+```zsh
+./scripts/verify.sh
+```
+
+打开 LiteLLM UI：
+
+```text
+http://127.0.0.1:4000/ui
+```
+
+默认登录：
+
+```text
+Username: admin
+Password: value of LITELLM_MASTER_KEY
+```
+
+## 安装内容
+
+默认本地路径：
 
 ```text
 ~/codex-litellm
@@ -69,14 +118,109 @@ Default local paths:
 ~/Library/LaunchAgents/com.codex-keybridge.litellm.plist
 ```
 
-Default local ports:
+默认本地端口：
 
 ```text
 LiteLLM:    127.0.0.1:4000
 PostgreSQL: 127.0.0.1:5432
 ```
 
-## Quick Start
+macOS 安装脚本会做这些事：
+
+1. 通过 Homebrew 安装 `postgresql@16`。
+2. 创建本地 `litellm` 数据库。
+3. 创建 `~/codex-litellm`。
+4. 在 Python 虚拟环境里安装 LiteLLM。
+5. 写入 LiteLLM 模型路由配置。
+6. 写入启动脚本，让 LiteLLM 等 PostgreSQL 就绪后再启动。
+7. 安装 macOS LaunchAgent，让 LiteLLM 登录后自动启动。
+8. 修改 `~/.codex/config.toml`，加入本地 LiteLLM Provider。
+9. 把真实 API Key 留在本地 `.env`，不提交到 Git。
+
+## Codex 配置形态
+
+Codex KeyBridge 会添加类似这样的 Provider：
+
+```toml
+model = "gpt-5.5"
+model_provider = "litellm"
+model_reasoning_effort = "medium"
+
+[model_providers.litellm]
+name = "LiteLLM"
+base_url = "http://127.0.0.1:4000/v1"
+wire_api = "responses"
+requires_openai_auth = true
+experimental_bearer_token = "sk-codex-local"
+```
+
+关键点是：Codex 仍然保留正常账号登录，但模型请求发到本地 LiteLLM。
+
+## Token 和费用记录
+
+连接 PostgreSQL 后，LiteLLM 会把请求写入：
+
+```text
+LiteLLM_SpendLogs
+```
+
+常用查询：
+
+```zsh
+psql -d litellm -c 'select "startTime", model, model_group, custom_llm_provider, total_tokens, prompt_tokens, completion_tokens, spend, status from "LiteLLM_SpendLogs" order by "startTime" desc limit 8;'
+```
+
+例如，可以验证 Codex 里的 `gpt-5.2` 是否实际走了 Gemini：
+
+```text
+model                         model_group  provider
+gemini/gemini-3-flash-preview gpt-5.2      gemini
+```
+
+## 项目文件
+
+```text
+scripts/install-macos.sh       macOS 一键安装脚本
+scripts/verify.sh              健康检查、路由检查、Token 记录检查
+scripts/uninstall.sh           移除 LiteLLM LaunchAgent
+scripts/patch_codex_config.py  安全修改 Codex 配置
+templates/                     env、LiteLLM、LaunchAgent、Codex 配置模板
+docs/architecture.md           架构说明
+docs/troubleshooting.md        常见问题
+docs/pitch.md                  推广文案
+```
+
+## 安全提醒
+
+不要把真实 API Key 提交到 GitHub。
+
+这个仓库只包含模板。你的本地 `.env` 已经被 `.gitignore` 排除。
+
+也不要提交 LiteLLM 日志，因为日志可能包含提示词、工具输出或本地路径。
+
+## 已知限制
+
+简单请求、模型路由和 Token 记录可以稳定工作。复杂 Agent 工作流如果包含大量工具调用历史，在 LiteLLM 把 Codex 的 Responses API 请求转给 Gemini 时，可能遇到兼容性问题。排查方法见 `docs/troubleshooting.md`。
+
+---
+
+## English
+
+**Keep Codex login, bring your own model keys.**
+
+Codex KeyBridge is a local routing harness for Codex Desktop. It keeps the normal Codex account login and desktop experience, while actual model calls are routed through your own LiteLLM proxy, API keys, and model providers.
+
+The main benefit is that you do not have to choose between the full Codex Desktop experience and your own API keys. API-key-only usage often loses app-level capabilities such as plugins, tools, remote control, and workspace history. Codex KeyBridge keeps those app capabilities available through the normal login, while moving model usage to keys that you control.
+
+In practice:
+
+- Codex Desktop still uses the normal GPT account login.
+- Plugins, tools, remote control, and history remain part of the app experience.
+- Model calls go through local LiteLLM.
+- You choose whether a Codex model name maps to OpenAI, Gemini, or another provider.
+- Token and spend records can be stored locally in PostgreSQL.
+
+### Quick Start
 
 ```zsh
 git clone https://github.com/lee1robin/codex-keybridge.git
@@ -117,86 +261,6 @@ Username: admin
 Password: value of LITELLM_MASTER_KEY
 ```
 
-## What The Installer Does
-
-The macOS installer:
-
-1. Installs `postgresql@16` with Homebrew.
-2. Creates a local `litellm` database.
-3. Creates `~/codex-litellm`.
-4. Installs LiteLLM into a Python virtual environment.
-5. Writes LiteLLM model routing config.
-6. Writes a startup script that waits for PostgreSQL before launching LiteLLM.
-7. Installs a macOS LaunchAgent for LiteLLM.
-8. Patches `~/.codex/config.toml` to add a local LiteLLM provider.
-9. Leaves your real API keys in a local `.env` file that is ignored by Git.
-
-## Codex Config Shape
-
-Codex KeyBridge adds a provider like this:
-
-```toml
-model = "gpt-5.5"
-model_provider = "litellm"
-model_reasoning_effort = "medium"
-
-[model_providers.litellm]
-name = "LiteLLM"
-base_url = "http://127.0.0.1:4000/v1"
-wire_api = "responses"
-requires_openai_auth = true
-experimental_bearer_token = "sk-codex-local"
-```
-
-The important part is that Codex still expects its normal account login, while the model endpoint becomes local.
-
-## Token And Spend Visibility
-
-When LiteLLM is connected to PostgreSQL, requests are written to:
-
-```text
-LiteLLM_SpendLogs
-```
-
-Useful query:
-
-```zsh
-psql -d litellm -c 'select "startTime", model, model_group, custom_llm_provider, total_tokens, prompt_tokens, completion_tokens, spend, status from "LiteLLM_SpendLogs" order by "startTime" desc limit 8;'
-```
-
-For example, you can verify that Codex's `gpt-5.2` route actually used Gemini:
-
-```text
-model                         model_group  provider
-gemini/gemini-3-flash-preview gpt-5.2      gemini
-```
-
-## Project Files
-
-```text
-scripts/install-macos.sh       full macOS installer
-scripts/verify.sh              health, routing, and token logging checks
-scripts/uninstall.sh           removes the LiteLLM LaunchAgent
-scripts/patch_codex_config.py  safe Codex config patcher
-templates/                     env, LiteLLM, LaunchAgent, and Codex templates
-docs/architecture.md           how the bridge works
-docs/troubleshooting.md        common failure modes
-docs/pitch.md                  short launch copy and positioning
-```
-
-## Safety
-
-Do not commit real API keys.
-
-This repository includes only templates. Your local `.env` is ignored by Git.
-
-Also avoid committing LiteLLM logs. They may contain prompts or tool output.
-
-## Known Limitation
-
-Simple requests and token tracking work well with cross-provider routes. Complex Codex agent workflows that involve tool-call history may expose compatibility gaps when LiteLLM translates Codex's Responses API calls to Gemini. See `docs/troubleshooting.md`.
-
-## License
+### License
 
 MIT
-
