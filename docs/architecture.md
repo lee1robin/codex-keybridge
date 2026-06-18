@@ -1,30 +1,52 @@
 # Architecture
 
-Codex KeyBridge inserts LiteLLM between Codex Desktop and upstream model providers.
+Codex KeyBridge registers LiteLLM as a separate Codex provider. The current recommended setup keeps Codex's official provider as the default, and uses LiteLLM only when the user explicitly switches to it.
 
 ```text
 Codex Desktop
   normal account login remains intact
+  default provider remains official openai
   |
-  | OpenAI-compatible Responses API
-  v
-Local LiteLLM proxy
-  model alias routing
-  cross-key dispatch
-  spend/token logging
+  +--> Official Codex/OpenAI provider
   |
-  +--> OpenAI API key -> GPT models
+  +--> LiteLLM Local provider
   |
-  +--> Gemini API key -> Gemini models
-  |
-  v
-PostgreSQL
-  LiteLLM_SpendLogs
+       OpenAI-compatible Responses API
+       |
+       v
+     Local LiteLLM proxy
+       model alias routing
+       cross-key dispatch
+       spend/token logging
+       |
+       +--> OpenAI API key -> GPT models
+       |
+       +--> Gemini API key -> Gemini models
+       |
+       v
+     PostgreSQL
+       LiteLLM_SpendLogs
 ```
+
+## Current Codex Config Shape
+
+```toml
+model = "gpt-5.5"
+model_provider = "openai"
+model_reasoning_effort = "medium"
+
+[model_providers.litellm]
+name = "LiteLLM Local"
+base_url = "http://127.0.0.1:4000/v1"
+wire_api = "responses"
+experimental_bearer_token = "sk-codex-local"
+```
+
+Use `model_provider = "openai"` for official Codex token usage. Use `model_provider = "litellm"` for local API-key routing through LiteLLM.
 
 ## Cross-Key Routing
 
-The Codex model picker still emits familiar Codex model slugs, for example `gpt-5.2`.
+When the `litellm` provider is active, the Codex model picker still emits familiar Codex model slugs, for example `gpt-5.2`.
 
 LiteLLM receives that model name and resolves it through `config.yaml`:
 
@@ -37,9 +59,9 @@ LiteLLM receives that model name and resolves it through `config.yaml`:
 
 That means the UI name and the upstream model do not need to match. The local bridge decides which provider and key to use.
 
-## Why Keep `requires_openai_auth = true`
+## Why The Old Provider Replacement Is Legacy
 
-Codex Desktop still expects its normal account session for UI behavior, history, and desktop integration. The harness keeps that login flow intact, while changing the model provider endpoint to local LiteLLM.
+The original implementation existed before Codex exposed a supported custom provider path. It replaced or repurposed provider configuration more aggressively. New Codex releases support user-level `model_providers`, so the recommended approach is now a clean split: keep the official provider and add LiteLLM as a separate provider.
 
 ## Token Tracking
 

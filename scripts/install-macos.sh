@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INSTALL_DIR="${CODEX_LITELLM_DIR:-$HOME/codex-litellm}"
 CODEX_CONFIG="${CODEX_CONFIG:-$HOME/.codex/config.toml}"
+CODEX_DEFAULT_PROVIDER="${CODEX_DEFAULT_PROVIDER:-openai}"
 LAUNCH_AGENT_LABEL="com.codex-keybridge.litellm"
 LAUNCH_AGENT_PATH="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist"
 POSTGRES_BIN="/opt/homebrew/opt/postgresql@16/bin"
@@ -25,6 +26,11 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 require_file "$REPO_DIR/.env"
+
+if [[ "$CODEX_DEFAULT_PROVIDER" != "openai" && "$CODEX_DEFAULT_PROVIDER" != "litellm" ]]; then
+  printf 'CODEX_DEFAULT_PROVIDER must be openai or litellm\n' >&2
+  exit 1
+fi
 
 if ! brew list postgresql@16 >/dev/null 2>&1; then
   log "Installing postgresql@16"
@@ -114,6 +120,9 @@ fi
 
 "$INSTALL_DIR/.venv/bin/python" "$REPO_DIR/scripts/patch_codex_config.py" \
   --config "$CODEX_CONFIG" \
-  --master-key "$(grep '^LITELLM_MASTER_KEY=' "$INSTALL_DIR/.env" | cut -d= -f2-)"
+  --master-key "$(grep '^LITELLM_MASTER_KEY=' "$INSTALL_DIR/.env" | cut -d= -f2-)" \
+  --default-provider "$CODEX_DEFAULT_PROVIDER"
 
 log "Done. Restart Codex Desktop, then run ./scripts/verify.sh"
+log "Current default provider written to Codex config: $CODEX_DEFAULT_PROVIDER"
+log "Use CODEX_DEFAULT_PROVIDER=litellm ./scripts/install-macos.sh only if you want Codex to default to local LiteLLM routing."

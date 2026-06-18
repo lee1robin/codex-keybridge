@@ -42,22 +42,27 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--master-key", required=True)
+    parser.add_argument(
+        "--default-provider",
+        choices=["openai", "litellm"],
+        default="openai",
+        help="Provider Codex should use by default after patching. Default: openai.",
+    )
     args = parser.parse_args()
 
     path = Path(args.config)
     text = path.read_text() if path.exists() else ""
 
     text = upsert_top_level_scalar(text, "model", "gpt-5.5")
-    text = upsert_top_level_scalar(text, "model_provider", "litellm")
+    text = upsert_top_level_scalar(text, "model_provider", args.default_provider)
     text = upsert_top_level_scalar(text, "model_reasoning_effort", "medium")
 
     text = strip_existing_litellm_provider(text)
     provider = f"""
 [model_providers.litellm]
-name = "LiteLLM"
+name = "LiteLLM Local"
 base_url = "http://127.0.0.1:4000/v1"
 wire_api = "responses"
-requires_openai_auth = true
 experimental_bearer_token = "{args.master_key}"
 """
     path.write_text(text.rstrip() + "\n" + provider.lstrip())
